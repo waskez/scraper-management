@@ -1,0 +1,144 @@
+﻿@page "/"
+@using BlazorInputFile
+@using ScraperManager.Queue
+@using ScraperManager.Queue.Models
+@using ScraperManager.Database.Enumerations
+@inject IScraperQueue Queue
+@implements IDisposable
+
+<h1>Scrapers</h1>
+<label class="custom-file-upload btn btn-light">
+    <InputFile accept=".dll" OnChange="HandleSelection" />
+    Upload
+</label>
+
+@if (scrapers == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <table class="table table-bordered">
+        <colgroup>
+            <col />
+            <col />
+            <col width="90" />
+            <col width="180" />
+            <col width="180" />
+            <col width="90" />
+            <col width="70" />
+        </colgroup>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Enabled</th>
+                <th>Started</th>
+                <th>Ended</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in scrapers)
+            {
+                <tr>
+                    <td>@s.Name</td>
+                    <td>@s.Description</td>
+                    <td>
+                        <div class="circle @(s.Enabled ? "circle-green" : "circle-red")"></div>
+                    </td>
+                    <td class="text-center">
+                        @(s.LastStart.HasValue ? s.LastStart.Value.ToString("dd.MM.yyyy hh:mm:ss") : "")
+                    </td>
+                    <td class="text-center">
+                        @(s.LastSuccess.HasValue ? s.LastSuccess.Value.ToString("dd.MM.yyyy hh:mm:ss") : "")
+                    </td>
+                    <td class="text-center">
+                        @(Status(s.Status))
+                    </td>
+                    <td class="text-center">
+                        <button type="button" class="btn btn-primary" @onclick="@(() => Run(s.Name))" disabled="@(DisableButton(s.Status))">Run</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Scraper> scrapers;
+
+    async Task HandleSelection(IFileListEntry[] files)
+    {
+        var file = files.FirstOrDefault();
+        if (file != null)
+        {
+            await Queue.UploadScraperAsync(file);
+        }
+    }
+
+    MarkupString Status(CurrentStatus status)
+    {
+        switch (status)
+        {
+            case CurrentStatus.Queued:
+                return new MarkupString("<span class=\"badge badge-warning\">Queued</span>");
+            case CurrentStatus.Running:
+                return new MarkupString("<span class=\"badge badge-info\">Running</span>");
+            case CurrentStatus.Canceled:
+                return new MarkupString("<span class=\"badge badge-secondary\">Canceled</span>");
+            case CurrentStatus.Success:
+                return new MarkupString("<span class=\"badge badge-success\">Success</span>");
+            case CurrentStatus.Error:
+                return new MarkupString("<span class=\"badge badge-danger\">Error</span>");
+            default:
+                return new MarkupString("<span></span>");
+        }
+    }
+
+    bool DisableButton(CurrentStatus status)
+    {
+        return status == CurrentStatus.Queued || status == CurrentStatus.Running;
+    }
+
+    void Run(string name)
+    {
+        Queue.Enqueue(name);
+    }
+
+    void ChangeStatus(ScraperStatus status)
+    {
+        var s = scrapers.Where(s => s.Name == status.Name).First();
+        s.Status = status.Status;
+        s.LastStart = status.LastStart;
+        s.LastSuccess = status.LastSuccess;
+        InvokeAsync(StateHasChanged);
+    }
+
+    void Uploaded(UploadResult result)
+    {
+        if (result.Success)
+        {
+            scrapers.Add(result.Scraper);
+        }
+        else
+        {
+            //TODO: message
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Queue.OnScraperUploaded += Uploaded;
+        Queue.OnScraperStatusChanged += ChangeStatus;
+
+        scrapers = Queue.GetAllScrapers();
+    }
+
+    public void Dispose()
+    {
+        Queue.OnScraperUploaded -= Uploaded;
+        Queue.OnScraperStatusChanged -= ChangeStatus;
+    }
+}

@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <Product>ScraperManager</Product>
+    <Authors>waskez</Authors>
+    <Company />
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>ScraperManagerSignKey.pfx</AssemblyOriginatorKeyFile>
+    <DelaySign>false</DelaySign>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Scripts\main.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Scripts\main.js" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ScraperManager.Contract\ScraperManager.Contract.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+    <ProjectReference Include="..\ScraperManager.Database\ScraperManager.Database.csproj">
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="cmd /c echo ------ Copy the file $(AssemblyName).dll to a Scrapers directory ------" />
+    <Exec Command="xcopy /y $(MSBuildProjectDirectory)\bin\Debug\netcoreapp3.1\$(AssemblyName).dll ..\ScraperManager.UI\Scrapers\" />
+  </Target>
+
+</Project>
